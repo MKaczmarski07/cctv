@@ -3,7 +3,6 @@ import pickle
 import struct
 import imutils
 import threading
-import pyshine as ps
 import cv2
 import tkinter
 import customtkinter as ctk
@@ -35,18 +34,21 @@ def update_clients():
 
 def show_video(addr, client_socket, video_label, width, height):
     try:
-        print('CLIENT {} CONNECTED!'.format(addr))
-        connected_clients.append(addr)
-        update_clients()
+        connected = True # indicate client connection
         if client_socket:  # if a client socket exists
             data = b""
             payload_size = struct.calcsize("Q")
-            while True:
+            while connected:
                 while len(data) < payload_size:
                     packet = client_socket.recv(4 * 1024)  # 4K max
                     if not packet:
+                        connected = False
                         break
                     data += packet
+                if not connected:
+                    connected_clients.remove(addr)
+                    update_clients()
+                    break # exit loop if client disconnected
                 packed_msg_size = data[:payload_size]
                 data = data[payload_size:]
                 msg_size = struct.unpack("Q", packed_msg_size)[0]
@@ -68,11 +70,18 @@ def show_video(addr, client_socket, video_label, width, height):
                 app.update()
 
             client_socket.close()
+
+            # Change frame to a solid color when client disconnects
+            disconnected_frame = Image.new('RGB', (width, height), color='#313335')
+            photo = ctk.CTkImage(dark_image=disconnected_frame, size=(width, height))
+            video_label.configure(image=photo)
+            video_label.image = photo
+            app.update()
+
     except Exception as e:
         connected_clients.remove(addr)
         update_clients()
         print(e)  # For debugging
-        print(f"CLIENT {addr} DISCONNECTED")
 
 
 def start_server(max_amount):
@@ -85,7 +94,8 @@ def start_server(max_amount):
 
     while True:
         client_socket, addr = server_socket.accept()
-
+        connected_clients.append(addr)
+        update_clients()
         width, height = get_size()
 
         clients_count = len(connected_clients)
@@ -116,10 +126,9 @@ def choose_grid():
 
 
 def set_video_label(clients_count):
-    video_label = video1
-    if (clients_count) == 2:
-        video_label = video2
-    return video_label
+    video_labels = [video1, video2, video3, video4]
+    if 1 <= clients_count <= 4:
+        return video_labels[clients_count - 1]
 
 
 def set_grid(amount):
@@ -223,3 +232,4 @@ video4 = ctk.CTkLabel(app, text="", fg_color='#313335')
 
 # Run app
 app.mainloop()
+
