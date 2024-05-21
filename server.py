@@ -8,6 +8,8 @@ import tkinter
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import ipaddress
+import os
+import datetime
 
 
 host_name = socket.gethostname()
@@ -16,6 +18,7 @@ port = 9999
 
 
 connected_clients = []
+recording_status = {} # dictionary of current recordings
 
 
 def check_ip(address):
@@ -32,9 +35,27 @@ def update_clients():
     app.update()
 
 
-def show_video(addr, client_socket, video_label, width, height):
+def create_file_name(addr):
+    now = datetime.datetime.now()
+    return f"{addr[0]}_{now.strftime('%Y%m%d_%H%M%S')}.mp4"
+
+
+def toggle_recording(client_id, record_button):
+    recording_status[client_id] = not recording_status.get(client_id, False)
+    if recording_status[client_id]:
+        record_button.configure(fg_color='green', hover_color='green')
+    else:
+        record_button.configure(fg_color='red', hover_color='red')
+
+
+def show_video(addr, client_socket, video_label, record_button, width, height):
     try:
         connected = True # indicate client connection
+        writer = None
+        client_id = addr[1]  # Use client port number as unique ID
+        recording_status[client_id] = False
+        record_button.configure(command=lambda: toggle_recording(client_id, record_button))
+
         if client_socket:  # if a client socket exists
             data = b""
             payload_size = struct.calcsize("Q")
@@ -57,8 +78,23 @@ def show_video(addr, client_socket, video_label, width, height):
                     data += client_socket.recv(4 * 1024)
                 frame_data = data[:msg_size]
                 data = data[msg_size:]
-
                 frame = pickle.loads(frame_data)
+
+                if recording_status[client_id]:
+                    if writer is None:
+                        # Initialize the VideoWriter with frame dimensions
+                        frame_height, frame_width = frame.shape[:2]
+                        fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+                        file_name = create_file_name(addr)
+                        writer = cv2.VideoWriter(file_name, fourcc, 20.0, (frame_width, frame_height))
+
+                    writer.write(frame)
+
+                if writer is not None and recording_status[client_id] == False:
+                    writer.release()
+                    writer = None
+
+
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # convert from BGR to RGB
 
                 frame = Image.fromarray(frame)
@@ -82,6 +118,9 @@ def show_video(addr, client_socket, video_label, width, height):
         connected_clients.remove(addr)
         update_clients()
         print(e)  # For debugging
+    finally:
+        if writer is not None:
+            writer.release()
 
 
 def start_server(max_amount):
@@ -99,9 +138,9 @@ def start_server(max_amount):
         width, height = get_size()
 
         clients_count = len(connected_clients)
-        video_label = set_video_label(clients_count)
+        video_label, record_button = set_view(clients_count)
 
-        thread = threading.Thread(target=show_video, args=(addr, client_socket, video_label, width, height))
+        thread = threading.Thread(target=show_video, args=(addr, client_socket, video_label, record_button, width, height))
         thread.start()
 
 
@@ -125,10 +164,11 @@ def choose_grid():
     button_four.pack(side="left", padx=(10,0))
 
 
-def set_video_label(clients_count):
+def set_view(clients_count):
     video_labels = [video1, video2, video3, video4]
+    record_buttons = [rec_button1, rec_button2, rec_button3, rec_button4]
     if 1 <= clients_count <= 4:
-        return video_labels[clients_count - 1]
+        return video_labels[clients_count - 1], record_buttons[clients_count - 1]
 
 
 def set_grid(amount):
@@ -156,15 +196,22 @@ def set_grid(amount):
 
     if amount == 1:
         video1.grid(row=1, column=0, padx=20, pady=(0, 20), columnspan=2, sticky="nsew")
+        rec_button1.place(in_=video1, relx=1, x=-20, y=20, anchor='ne')
     if amount == 2:
         video1.grid(row=1, column=0, padx=(20, 10), pady=(0, 20), sticky="nsew")
         video2.grid(row=1, column=1, padx=(10, 20), pady=(0, 20), sticky="nsew")
+        rec_button1.place(in_=video1, relx=1, x=-20, y=20, anchor='ne')
+        rec_button2.place(in_=video2, relx=1, x=-20, y=20, anchor='ne')
     if amount == 3 or amount == 4:
         app.rowconfigure(2, weight=1)
         video1.grid(row=1, column=0, padx=(20, 10), pady=(0, 10), sticky="nsew")
         video2.grid(row=1, column=1, padx=(10, 20), pady=(0, 10), sticky="nsew")
         video3.grid(row=2, column=0, padx=(20, 10), pady=(10, 20), sticky="nsew")
         video4.grid(row=2, column=1, padx=(10, 20), pady=(10, 20), sticky="nsew")
+        rec_button1.place(in_=video1, relx=1, x=-20, y=20, anchor='ne')
+        rec_button2.place(in_=video2, relx=1, x=-20, y=20, anchor='ne')
+        rec_button3.place(in_=video3, relx=1, x=-20, y=20, anchor='ne')
+        rec_button4.place(in_=video4, relx=1, x=-20, y=20, anchor='ne')
 
     width, height = get_size()
 
@@ -229,7 +276,12 @@ video2 = ctk.CTkLabel(app, text="", fg_color='#313335')
 video3 = ctk.CTkLabel(app, text="", fg_color='#313335')
 video4 = ctk.CTkLabel(app, text="", fg_color='#313335')
 
+rec_button1 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
+rec_button2 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
+rec_button3 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
+rec_button4 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
+
+
 
 # Run app
 app.mainloop()
-

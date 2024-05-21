@@ -6,17 +6,21 @@ The main idea was to create a system with a graphical interface allowing for
 viewing images from many IP cameras connected to one server using a web socket.
 
 ## User Interface 
+<i>Comming soon...</i>
 
-## Key Features
-
-### Server
-- Handling multiple connections using multithreading.
-- Receiving and decoding video data.
-- Displayig multiple videos in form of grid inside a graphical interface.
-- Displaying network related data and current number of connected clients.
+## How it works?
 
 ### Client
-- Live video streaming
+- Video frames from webcam are captured using OpenCV
+- Pickle module is used to serialize frame to bytes
+- Each frame data is packed using Struct module
+- Packed bytes are sent to the server socket
+  
+### Server
+- Server socket is listening on selected address and port number
+- Each accepted client connection start a new thread used to process video packets
+- Data from each client is unpacked using Struct module and assembled into frame using Pickle module.
+- Video frame is converted from BGR to RGB color space and displayed in GUI
 
 ## Technology Stack
 
@@ -26,6 +30,12 @@ viewing images from many IP cameras connected to one server using a web socket.
 [imutils🔗](https://pypi.org/project/imutils/)<br>
 [Pillow🔗](https://pillow.readthedocs.io/en/stable/installation/index.html)<br>
 
+## Transport Layer protocol
+- In most cases of live video streaming, UDP is the best solution. Delivery time is the most important thing, and losing a few packages is acceptable.
+- However, this project uses the TCP protocol.
+- Server do not use multicast transmission to stream any data to clients. Each client sends data to the server individually - it is a unicast connection each time, so using TCP is possible. 
+- The advantage of this solution is that the connection is constantly monitored, so when one of the customers disconnects, it is immediately visible in the control panel. However, this results in slower transmission and higher bandwidth usage.
+- In addition, videos from IP cameras can be recorded and stored in the server's mass storage, so that they can then be thoroughly analyzed. Therefore, it is crucial that the server receives all the frames without artifacts.
 
 ## Installation Guide 
 
