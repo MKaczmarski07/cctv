@@ -1,12 +1,11 @@
 import socket
 import pickle
 import struct
-import imutils
 import threading
 import cv2
 import tkinter
 import customtkinter as ctk
-from PIL import Image, ImageTk
+from PIL import Image
 import ipaddress
 import os
 import datetime
@@ -18,7 +17,7 @@ port = 9999
 
 
 connected_clients = []
-recording_status = {} # dictionary of current recordings
+recording_status = {} # {client_id: state}
 
 
 def check_ip(address):
@@ -35,9 +34,17 @@ def update_clients():
     app.update()
 
 
-def create_file_name(addr):
+def configure_file(addr):
     now = datetime.datetime.now()
-    return f"{addr[0]}_{now.strftime('%Y%m%d_%H%M%S')}.mp4"
+    date_str = now.strftime('%Y-%m-%d')
+    recordings_dir = "recordings"
+    if not os.path.exists(recordings_dir):
+        os.makedirs(recordings_dir)
+    folder_name = os.path.join(recordings_dir, date_str)
+    if not os.path.exists(folder_name):
+        os.makedirs(folder_name)
+    file_name = f"{addr[0]}_{now.strftime('%H%M%S')}.mp4"
+    return os.path.join(folder_name, file_name)
 
 
 def toggle_recording(client_id, record_button):
@@ -55,6 +62,8 @@ def show_video(addr, client_socket, video_label, record_button, width, height):
         client_id = addr[1]  # Use client port number as unique ID
         recording_status[client_id] = False
         record_button.configure(command=lambda: toggle_recording(client_id, record_button))
+
+        current_day = datetime.datetime.now().day
 
         if client_socket:  # if a client socket exists
             data = b""
@@ -82,10 +91,9 @@ def show_video(addr, client_socket, video_label, record_button, width, height):
 
                 if recording_status[client_id]:
                     if writer is None:
-                        # Initialize the VideoWriter with frame dimensions
                         frame_height, frame_width = frame.shape[:2]
                         fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-                        file_name = create_file_name(addr)
+                        file_name = configure_file(addr)
                         writer = cv2.VideoWriter(file_name, fourcc, 20.0, (frame_width, frame_height))
 
                     writer.write(frame)
@@ -154,14 +162,16 @@ def choose_grid():
     if not check_ip(ip_address):
         title.configure(text="Wrong IP address format!", text_color="red")
         return
-    button.pack_forget()
+    select_button.pack_forget()
     ip_address_input.pack_forget()
     title.configure(text="How many cameras do you want to connect?", text_color="white")
     button_wrapper.pack(pady=10, side="top")
-    button_one.pack(side="left")
-    button_two.pack(side="left", padx=(10,0))
-    button_three.pack(side="left", padx=(10,0))
-    button_four.pack(side="left", padx=(10,0))
+    buttons = [button_one, button_two, button_three, button_four]
+    for btn in buttons:
+        if btn == button_one:
+            btn.pack(side="left")
+        else:
+            btn.pack(side="left", padx=(10,0))
 
 
 def set_view(clients_count):
@@ -172,11 +182,9 @@ def set_view(clients_count):
 
 
 def set_grid(amount):
-    title.pack_forget()
-    button_one.pack_forget()
-    button_two.pack_forget()
-    button_three.pack_forget()
-    button_four.pack_forget()
+    elements_to_forget = [title, button_one, button_two, button_three, button_four]
+    for element in elements_to_forget:
+        element.pack_forget()
 
     # Open fullscreen
     width = app.winfo_screenwidth()
@@ -214,19 +222,15 @@ def set_grid(amount):
         rec_button4.place(in_=video4, relx=1, x=-20, y=20, anchor='ne')
 
     width, height = get_size()
-
-    video1.configure(width=width, height=height)
-    video2.configure(width=width, height=height)
-    video3.configure(width=width, height=height)
-    video4.configure(width=width, height=height)
+    video_labels = [video1, video2, video3, video4]
+    for label in video_labels:
+        label.configure(width=width, height=height)
 
 
 def get_size():
     app.update()
-
     width = video1.winfo_width()
     height = video1.winfo_height()
-
     return  width, height
 
 
@@ -254,10 +258,11 @@ entered_ip_address = tkinter.StringVar(value=host_ip)
 ip_address_input = ctk.CTkEntry(container, width=200, height=40, textvariable=entered_ip_address)
 ip_address_input.pack(pady=(0,5))
 
-button = ctk.CTkButton(container, text="Select", command=choose_grid)
-button.pack(pady=10)
+select_button = ctk.CTkButton(container, text="Select", command=choose_grid)
+select_button.pack(pady=10)
 
-# Grid Selection
+
+# Grid Selection Page
 button_wrapper = ctk.CTkFrame(container, fg_color='transparent')
 
 button_one = ctk.CTkButton(button_wrapper, text="1", width=40, command=lambda:set_max_clients(1))
@@ -271,16 +276,22 @@ info_subcontainer = ctk.CTkFrame(info_wrapper, fg_color='transparent')
 info_label = ctk.CTkLabel(info_subcontainer, fg_color='transparent', text="Connected Clients: 0")
 server_status = ctk.CTkLabel(info_subcontainer, fg_color='transparent', text="")
 
-video1 = ctk.CTkLabel(app, text="", fg_color='#313335')
-video2 = ctk.CTkLabel(app, text="", fg_color='#313335')
-video3 = ctk.CTkLabel(app, text="", fg_color='#313335')
-video4 = ctk.CTkLabel(app, text="", fg_color='#313335')
+video1 = ctk.CTkLabel(app)
+video2 = ctk.CTkLabel(app)
+video3 = ctk.CTkLabel(app)
+video4 = ctk.CTkLabel(app)
+video_labels = [video1, video2, video3, video4]
+for label in video_labels:
+    label.configure(text="", fg_color='#313335')
 
-rec_button1 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
-rec_button2 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
-rec_button3 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
-rec_button4 = ctk.CTkButton(app, text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
+rec_button1 = ctk.CTkButton(app)
+rec_button2 = ctk.CTkButton(app)
+rec_button3 = ctk.CTkButton(app)
+rec_button4 = ctk.CTkButton(app)
 
+rec_buttons = [rec_button1, rec_button2, rec_button3, rec_button4]
+for btn in rec_buttons:
+    btn.configure(text="", height=20, width=20, corner_radius=5, fg_color='red', border_width=1.5, border_color='white', hover_color='red')
 
 
 # Run app
