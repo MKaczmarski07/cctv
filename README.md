@@ -1,4 +1,4 @@
-# CCTV Control Panel
+# CCTV Server
 <i>Project done for the subject audio-video streaming </i> <br/>
 
 ## About
@@ -6,7 +6,8 @@ The main idea was to create a system with a graphical interface allowing for
 viewing images from many IP cameras connected to one server using a web socket.
 
 ## User Interface 
-<i>Comming soon...</i>
+![UI](https://github.com/MKaczmarski07/cctv/assets/95142305/209b75c1-5b6f-4691-91f8-5610cc9eae69)
+
 
 ## How it works?
 
