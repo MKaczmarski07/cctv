@@ -9,7 +9,7 @@ viewing images from many IP cameras connected to one server using a web socket.
 ![UI](https://github.com/MKaczmarski07/cctv/assets/95142305/209b75c1-5b6f-4691-91f8-5610cc9eae69)
 
 
-## How it works?
+## How does it work?
 
 ### Client
 - Video frames from webcam are captured using OpenCV.
@@ -32,12 +32,6 @@ viewing images from many IP cameras connected to one server using a web socket.
 [OpenCV🔗](https://opencv.org)<br>
 [Pillow🔗](https://pillow.readthedocs.io/en/stable/installation/index.html)<br>
 
-## Transport Layer protocol
-- In most cases of live video streaming, UDP is the best solution. Delivery time is the most important thing, and losing a few packages is acceptable.
-- However, this project uses the TCP protocol.
-- Server do not use multicast transmission to stream any data to clients. Each client sends data to the server individually - it is a unicast connection each time, so using TCP is possible. 
-- The advantage of this solution is that the connection is constantly monitored, so when one of the clients disconnects, it is immediately visible in the control panel. However, this results in slower transmission and higher bandwidth usage.
-- In addition, videos from IP cameras can be recorded and stored in the server's mass storage, so that they can then be thoroughly analyzed. Therefore, it is crucial that the server receives all the frames without artifacts.
 
 ## Installation Guide 
 
